@@ -1,0 +1,8 @@
+.env
+logs/
+.venv/
+__pycache__/
+results/
+.superpowers/
+.claude/worktrees/
+.pytest_cache/
