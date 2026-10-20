@@ -14,12 +14,14 @@ import json
 import sys
 import urllib.request
 from collections.abc import Sequence
+from pathlib import Path
 
 import pandas as pd
 from control_arena import EvalMode
 from inspect_ai.log import EvalLog
 
 from agent_control.config import ExperimentConfig
+from agent_control.runner import require_docker
 
 REFUSAL_FLAG_THRESHOLD = 0.5
 SMOKE_SAMPLES = 5
@@ -179,6 +181,15 @@ def logs_to_frame(logs: list[EvalLog]) -> pd.DataFrame:
     )
 
 
+def smoke_log_dir(log_dir: Path) -> Path:
+    """Sibling of ``log_dir`` (``<name>_smoke``), never inside it.
+
+    Inspect's log listing is recursive, so a nested smoke directory would be read
+    by analyze together with the real runs.
+    """
+    return log_dir.parent / f"{log_dir.name}_smoke"
+
+
 def collect(
     models: Sequence[str], config: ExperimentConfig
 ) -> dict[str, tuple[pd.DataFrame, list[EvalLog]]]:
@@ -187,7 +198,7 @@ def collect(
     from agent_control.runner import build_tasks, run_tasks
 
     config.require_api_key()
-    smoke_config = dataclasses.replace(config, log_dir=config.log_dir / "smoke")
+    smoke_config = dataclasses.replace(config, log_dir=smoke_log_dir(config.log_dir))
     out: dict[str, tuple[pd.DataFrame, list[EvalLog]]] = {}
     for model in models:
         cfg = dataclasses.replace(smoke_config, untrusted_model=model)
@@ -237,6 +248,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     args = p.parse_args(argv)
     config = ExperimentConfig()
+    require_docker()
     results = collect(args.models, config)
     try:
         prices = fetch_prices()

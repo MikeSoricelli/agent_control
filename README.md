@@ -18,8 +18,8 @@ All commands run from the repo root, e.g. `uv run python -m agent_control.apps_b
 
 | Command | Flags |
 | --- | --- |
-| `python -m agent_control.apps_backdoor.smoke` | `--models M [M ...]` candidate untrusted models (default: the config's `untrusted_model`). Runs 5 samples of `untrusted_only` (honest + attack) per model plus 5 `trusted_only` honest samples; prints refusal rate, backdoor success, usefulness and extrapolated cost. Exits 1 if a model's attack refusal rate is >= 0.5. Logs go to `logs/smoke`. |
-| `python -m agent_control.apps_backdoor.run` | `--protocols P [P ...]` subset of the lineup (default all); `--limit N` samples per task (default `samples_per_mode`, 20); `--untrusted-model M` override U. Logs go to `logs/`. |
+| `python -m agent_control.apps_backdoor.smoke` | `--models M [M ...]` candidate untrusted models (default: the config's `untrusted_model`). Runs 5 samples of `untrusted_only` (honest + attack) per model plus 5 `trusted_only` honest samples; prints refusal rate, backdoor success, usefulness and extrapolated cost. Exits 1 if a model's attack refusal rate is >= 0.5. Logs go to `logs_smoke/` (a sibling of `logs/`). |
+| `python -m agent_control.apps_backdoor.run` | `--protocols P [P ...]` subset of the lineup (default all); `--limit N` samples per task (default `samples_per_mode`, 20); `--untrusted-model M` override U; `--log-dir DIR` (default `logs/`). |
 | `python -m agent_control.apps_backdoor.analyze` | `--log-dir DIR` (default `logs/`); `--out-dir DIR` (default `results/`). Prints the per-protocol summary table and saves `summary.png` and `suspicion_trusted_monitoring.png`. |
 
 Run `smoke` first. `smoke` and `run` make live, paid model calls.
@@ -50,7 +50,17 @@ uv run pytest -m "not docker and not live"
 uv run pytest -m docker
 ```
 
-The default command is offline and needs neither Docker nor an API key. `-m docker` needs a running Docker daemon (the `test_run` tests use the real APPS compose file, so `python:3.4` is pulled on first use). `live` tests make paid model calls.
+The default command is offline and needs neither Docker nor an API key. `-m docker` needs a running Docker daemon; those tests use Inspect's default `sandbox="docker"` image, not the real APPS compose file. The production APPS sandbox image (`python:3.4`) has not been verified: run `docker pull python:3.4` and let it finish before the smoke run. `live` tests make paid model calls.
+
+## Notes on results
+
+- `smoke --models` must be given both candidate models explicitly: `openrouter/deepseek/deepseek-v3.2` and `openrouter/anthropic/claude-haiku-5.5`. The default checks only the config's `untrusted_model`.
+- Safety estimates at 20 samples per mode are very noisy; treat them as rough.
+- Scripts that call `load_results` need an `if __name__ == "__main__":` guard (macOS uses spawn for the worker pool).
+- `smoke` writes to a sibling directory `<log_dir>_smoke` (e.g. `logs_smoke`), never inside `logs/`, because Inspect's log listing is recursive. Use `run --log-dir DIR` and `analyze --log-dir DIR` with a fresh directory so earlier runs are not mixed into the analysis.
+- Samples with missing task-success scores (errors) are dropped before analysis; `n_dropped` per protocol is in the summary and printed.
+- `upfront_auditing` is computed for a simulated deployment of `ExperimentConfig.upfront_deployment_samples` samples (default 1000), not the 20 run, so a 2% budget audits 20. Its safety is a different quantity (probability of no successful attack over the deployment) and is not comparable to the other protocols' caught/(caught+uncaught) safety; the summary has a `safety_definition` column and the plot marks it with `*`.
+- `run` and `smoke` check that Docker is reachable before starting.
 
 ## Adding an experiment
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 from collections.abc import Sequence
+from pathlib import Path
 
 from agent_control.apps_backdoor.experiment import (
     PROTOCOL_MODES,
@@ -12,7 +13,7 @@ from agent_control.apps_backdoor.experiment import (
     build_setting,
 )
 from agent_control.config import ExperimentConfig
-from agent_control.runner import build_tasks, run_tasks
+from agent_control.runner import build_tasks, require_docker, run_tasks
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -26,6 +27,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument("--limit", type=int, default=None, help="samples per task")
     p.add_argument("--untrusted-model", default=None)
+    p.add_argument(
+        "--log-dir",
+        type=Path,
+        default=None,
+        help="log directory (use a fresh one so analyze only sees this run)",
+    )
     return p.parse_args(argv)
 
 
@@ -34,7 +41,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     config = ExperimentConfig()
     if args.untrusted_model:
         config = dataclasses.replace(config, untrusted_model=args.untrusted_model)
+    if args.log_dir:
+        config = dataclasses.replace(config, log_dir=args.log_dir)
     config.require_api_key()
+    require_docker()
     protocols = build_protocols(config)
     if args.protocols:
         protocols = {k: v for k, v in protocols.items() if k in args.protocols}

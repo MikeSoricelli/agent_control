@@ -72,6 +72,27 @@ def _patch(monkeypatch, attack_df):
         lambda models, config: {"m/a": (attack_df, []), "trusted_only": (honest_t, [])},
     )
     monkeypatch.setattr(smoke, "fetch_prices", lambda: {})
+    monkeypatch.setattr(smoke, "require_docker", lambda: None)
+
+
+def test_smoke_log_dir_is_sibling_not_inside_log_dir(tmp_path):
+    log_dir = tmp_path / "logs"
+    sd = smoke.smoke_log_dir(log_dir)
+    assert sd != log_dir
+    assert log_dir not in sd.parents
+    assert sd.parent == log_dir.parent
+
+
+def test_main_checks_docker_first(monkeypatch):
+    def boom():
+        raise RuntimeError("docker down")
+
+    monkeypatch.setattr(smoke, "require_docker", boom)
+    monkeypatch.setattr(
+        smoke, "collect", lambda *a, **k: pytest.fail("collect must not run")
+    )
+    with pytest.raises(RuntimeError, match="docker down"):
+        smoke.main(["--models", "m/a"])
 
 
 def test_main_exits_nonzero_above_threshold(monkeypatch, capsys):

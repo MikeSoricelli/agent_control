@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from collections.abc import Mapping, Sequence
 
 from control_arena import ControlAgent, EvalMode
@@ -51,9 +53,32 @@ def run_tasks(
 ) -> list[EvalLog]:
     """Run tasks, failing fast if the API key is missing. ``limit`` caps samples."""
     config.require_api_key()
-    return inspect_eval(
-        tasks,
-        log_dir=str(config.log_dir),
-        limit=limit if limit is not None else config.samples_per_mode,
-        max_steps=config.max_steps,
+    # max_steps already reaches the agent loop via control_args() in build_tasks;
+    # eval_args() carries ControlArena's fail_on_error/max_tasks/etc. defaults.
+    eval_args = {
+        **config.to_control_eval_config().eval_args(),
+        "limit": limit if limit is not None else config.samples_per_mode,
+        "log_dir": str(config.log_dir),
+    }
+    return inspect_eval(tasks, **eval_args)
+
+
+def require_docker() -> None:
+    """Fail fast with an actionable message when Docker is unreachable."""
+    hint = (
+        "Docker is required for the APPS sandbox. Start Docker Desktop and wait "
+        "until it is running. If `docker` is not found or errors on credentials, "
+        "check that the docker CLI is on PATH and that the credential helper in "
+        "~/.docker/config.json is installed."
     )
+    if shutil.which("docker") is None:
+        raise RuntimeError(f"docker CLI not found. {hint}")
+    try:
+        result = subprocess.run(
+            ["docker", "info"], capture_output=True, text=True, timeout=30
+        )
+    except (subprocess.TimeoutExpired, OSError) as e:
+        raise RuntimeError(f"docker did not respond ({e}). {hint}") from e
+    if result.returncode != 0:
+        detail = (result.stderr or "").strip()
+        raise RuntimeError(f"docker daemon unreachable: {detail}. {hint}")

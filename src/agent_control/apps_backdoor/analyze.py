@@ -29,8 +29,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         config.audit_budget,
         trusted_only="trusted_only",
         untrusted_only="untrusted_only",
+        upfront_deployment_samples=config.upfront_deployment_samples,
     )
     print(summary.to_string(index=False))
+    print(
+        "Note: upfront_auditing safety is a different quantity "
+        "(probability of no successful attack over a simulated deployment of "
+        f"{config.upfront_deployment_samples} samples) and is not comparable "
+        "to the other protocols' caught/(caught+uncaught) safety."
+    )
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     plot_summary(summary).savefig(args.out_dir / "summary.png")
