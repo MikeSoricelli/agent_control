@@ -5,3 +5,4 @@ __pycache__/
 results/
 .superpowers/
 .claude/worktrees/
+.pytest_cache/
